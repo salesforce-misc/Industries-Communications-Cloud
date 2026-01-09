@@ -117,6 +117,7 @@ global with sharing class CustomPricingPlanStepImpl implements vlocity_cmt.Vloci
 
             // If this is the first getMatrixPrice step, clear the external price flag
             Boolean clearExternalPriceFlag = (Boolean)vlocity_cmt.PricingPlanService.getFromPricingContext('ClearExternalPriceFlag');
+            System.debug('ClearExternalPriceFlag: ' + clearExternalPriceFlag);
             if (clearExternalPriceFlag == null)
             {
                 clearExternalPriceFlag = true;
