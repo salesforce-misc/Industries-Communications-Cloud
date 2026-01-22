@@ -1,4 +1,4 @@
-global with sharing virtual class PricingPlanHelper implements vlocity_cmt.VlocityOpenInterface, Callable
+global with sharing virtual class PricingPlanHelper implements vlocity_cmt.VlocityOpenInterface
 {
     global static Boolean isLogging = false;
     global static String JSON_ATTR_FLD = 'vlocity_cmt__JSONAttribute__c';
@@ -43,20 +43,12 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
     private String itemObjectName;
     protected String productCodeField;
     protected Boolean isCpqNextFlow = false;
-
+    
     private static Map<String, Map<String, String>> pricingVariableToFieldMap = new Map<String, Map<String, String>>();
     private static Map<String, Object> attributeCodes = new Map<String, Object>();
+    private static vlocity_cmt.JSONAttributeSupport jsonSupport;
     private static final String RETAIN_PRICE = 'RetainAssetPriceOnNonPriceUpdate';
 
-    Map<String, String> pricingFieldMatrixMapping = new Map<String, String>(); 
-
-    //To Store all parent records which needs to be extracted for Line Items pricing.
-    Map<String,List<String>> sObjectTypeFieldsMap = new Map<String,List<String>>();
-
-    //Parent Sobject relationship on Line items object.
-    Map<String, List<String>> sObjectRelationsOnLineItemObject = new Map<String,List<String>>();
-    Map<String, Map<Id, Sobject>> itemListParentMap = new Map<String, Map<Id, Sobject>>();
-    private static vlocity_cmt.JSONAttributeSupport jsonSupport;
     static
     {
         String setting = getCpqConfigurationSetupValue('PricingPlanHelperLogging');
@@ -119,15 +111,6 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
             output.put('error', ex.getMessage());
             return false;
         }
-    }
-
-    public Object call(String action, Map<String, Object> args) 
-    {
-        Map<String,Object> inputMap = (Map<String,Object>)args.get('input');
-        Map<String,Object> outputMap = (Map<String,Object>)args.get('output');
-        Map<String,Object> options = (Map<String,Object>)args.get('options');
-        
-        return invokeMethod(action, inputMap, outputMap, options);
     }
 
     @TestVisible
@@ -256,6 +239,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
         {
             String itemObjectName = item.getSObjectType().getDescribe().getName();
             String provisioningStatus = (String)item.get('vlocity_cmt__ProvisioningStatus__c');
+            
             // Only clear flags for non-Asset items and if provisioningStatus is not Deleted
             if (provisioningStatus != 'Deleted' && itemObjectName != 'Asset')
             {
@@ -357,7 +341,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                         productPath = productName + '<' + productPath;
                         parentLineNum = parentLineNums.get(parentLineNum);
                     }
-                    String pathKey = (String)productPathMapping.get(productPath);
+                    String pathKey = (String)productPathMapping.get(productPath);                    
                     if (String.isNotBlank(pathKey))
                     {
                         lineNumberToPathKeyMapping.put(lineNum, pathKey);
@@ -373,7 +357,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
         Map<String, object> jsonSupportInput = new Map<String, object>();
         Map<String, object> jsonSupportOutput = new Map<String, object>();
         Map<String, object> jsonSupportOptions = new Map<String, object>();
-
+        
         // use the default setting if not specified
         jsonSupportInput.put('UseDisplayTextForValues', useDisplayTextForValues);
 
@@ -469,7 +453,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                             Map<String, Object> fieldVals = new Map<String, Object>();
                             fieldVals.put('value', matrixResultRow.get(fld));
                             fieldVals.put('detail', message);
-                            itemFieldDetails.put(itemField, fieldVals);
+                            itemFieldDetails.put(itemField, fieldVals); 
                         }
                     }
                     itemFields.put(String.valueOf(matrixResultRow.get('ID')), itemFieldDetails);
@@ -549,14 +533,13 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
         Map<String, Object> svcOutput = new Map<String, Object>();
         Map<String, Object> svcOptions = new Map<String, Object>();
 
+        //Check if Procedure Name is correct. If not, throw exception
         String procedureName = (String)input.get('ProcedureName');
 
         svcInput.putAll(input);
         Map<String, Object> jsonAttrSupportResultsMap = (Map<String, Object>) vlocity_cmt.PricingPlanService.getFromPricingContext('JsonAttrSupportResultsMap');
         svcInput.put('JsonAttrSupportResultsMap', jsonAttrSupportResultsMap);
-
         getMatrixRow(svcInput, svcOutput, svcOptions);
-
         List<Object> procedureInputData = (List<Object>)svcOutput.get('Result');
         Map<Id, String> itemIdToPathKeyMapping = (Map<Id, String>) svcOutput.get('ItemIdToPathKeyMapping');
         Map<String, SObject> lineNumToItem = (Map<String, SObject>) svcOutput.get('LineNumToItem');
@@ -610,7 +593,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                 setExternalPrice(extSvcInput, extSvcOutput, extSvcOptions);
                 processOutputAttributeAndVariableMap(input,procResult,procAggrResult,jsonAttrSupportResultsMap,outputVarMap);
             }
-        }
+        }                
     }
 
     protected virtual Map<String, String> getLineItemPricingVariableToFieldMap() {
@@ -885,7 +868,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                                 rangeFieldMapping.put(productCode, (Map<String,Object>)subCacheMap.get('RangeFieldMapping'));
                                 productCodeMapping.put(productCode, (Map<String,Object>)subCacheMap.get('ProductCodeMapping'));
                             }
-                        }
+                        }   
                         attrRowInfoKeySet = getStringSet(cacheMap.get('AttrRowInfoKeySet'));
                     }
                     else {
@@ -894,7 +877,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                         productCodeMapping = (Map<String, Object>) cacheMap.get('ProductCodeMapping');
                         productCodeSet = (Set<String>) cacheMap.get('ProductCodeSet');
                         attrRowInfoKeySet = (Set<String>) cacheMap.get('AttrRowInfoKeySet');
-                    }
+                    }                    
                     return;
                 }
                 else if (largeMatrix && getCacheApiResponseRecords(orgPart, cacheKey, matrixName, matrixVersionId)){
@@ -902,7 +885,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                 }
             }
         }
-        else if (largeMatrix && getCacheApiResponseRecords(orgPart, cacheKey, matrixName, matrixVersionId))
+        else if (largeMatrix && getCacheApiResponseRecords(orgPart, cacheKey, matrixName, matrixVersionId)) 
         {
             return;
         }
@@ -918,7 +901,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
         Set<String> rangeAttrs = (Set<String>)matrixInfoOutput.get('RangeAttributes');
 
         String matrixRowQuery = (String)matrixInfoOutput.get('MatrixRowQuery');
-
+                      
 
         for (SObject cmr : Database.query(matrixRowQuery))
         {
@@ -972,7 +955,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
             CHARACTERISTIC_NAME = 'CharacteristicName';
             CHARACTERISTIC_VALUE = 'CharacteristicValue';
             if (isLogging)
-            {
+            {   
                 System.debug('cmr priority ' + cmrSObject.getSObject('CalculationMatrixVersion').get('Rank'));
                 System.debug('cmr version number ' + cmrSObject.getSObject('CalculationMatrixVersion').get('VersionNumber'));
             }
@@ -1038,7 +1021,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
 
     global static void getMatrixInfo(Map<String, Object> input, Map<String, Object> output)
     {
-        String matrixName = (String)input.get('MatrixName');
+        String matrixName = (String)input.get('MatrixName');        
         SObject matrixVersion;
 
         DateTime dTime = System.now();
@@ -1052,17 +1035,17 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
         if(input.containsKey('DecisionMatrix'))
         {
             decisionMatrix = Boolean.valueOf((String)input.get('DecisionMatrix'));
-        }
-
+        }  
+        
         if(input.containsKey('LargeMatrix'))
         {
             largeMatrix = Boolean.valueOf((String)input.get('LargeMatrix'));
         }
-
+        
         if(decisionMatrix)
         {
             priorityFieldName = 'Rank';
-            versionNumberFieldName = 'VersionNumber';
+            versionNumberFieldName = 'VersionNumber'; 
             query = 'Select Id, IsEnabled, EndDateTime, CalculationMatrixId, CalculationMatrixVersion.Rank,' +
                     'StartDateTime, CalculationMatrixVersion.VersionNumber, Name from CalculationMatrixVersion ' +
                     'where CalculationMatrix.Name = :matrixName and IsEnabled=true AND '+
@@ -1109,7 +1092,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
         output.put('RangeAttributes', rangeAttrs);
 
         String matrixRowQuery;
-
+        
         if(decisionMatrix)
         {
             matrixRowQuery = 'SELECT Id, Name, InputData, CalculationMatrixVersion.Rank, CalculationMatrixVersion.VersionNumber ' +
@@ -1173,7 +1156,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                                 if (orgPart != null) {
                                     orgPart.put(apir.vlocity_cmt__CacheKey__c, subCacheMap);
                                 }
-                        rangeAttrMapping.put(cacheKeyToProdCodeMap.get(apir.vlocity_cmt__CacheKey__c), (Map<String,Object>)subCacheMap.get('RangeAttrMapping'));
+                                rangeAttrMapping.put(cacheKeyToProdCodeMap.get(apir.vlocity_cmt__CacheKey__c), (Map<String,Object>)subCacheMap.get('RangeAttrMapping'));
                                 rangeFieldMapping.put(cacheKeyToProdCodeMap.get(apir.vlocity_cmt__CacheKey__c), (Map<String,Object>)subCacheMap.get('RangeFieldMapping'));
                                 productCodeMapping.put(cacheKeyToProdCodeMap.get(apir.vlocity_cmt__CacheKey__c), (Map<String,Object>)subCacheMap.get('ProductCodeMapping'));                                
                             }
@@ -1294,7 +1277,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
         output.put('LineNumToItem', lineNumToItem);
         Map<String, List<SObject>> prodNameToItems = new Map<String, List<SObject>>();
         output.put('ProdNameToItems', prodNameToItems);
-
+ 
         for (String key : input.keySet())
         {
             if (key.length() > 4 && key.startsWith('Path'))
@@ -1302,7 +1285,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                 productPathMapping.put((String)input.get(key), key);
             }
         }
-
+ 
         if (itemList != null && !itemList.isEmpty())
         {
             Map<String, String> parentLineNums = new Map<String, String>();
@@ -1310,7 +1293,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
             {
                 itemIdToItem.put(item.Id, item);
                 String lineNum = (String)item.get(NSP + 'LineNumber__c');
-
+ 
                 if (lineNum != null)
                 {
                     lineNumToItem.put(lineNum, item);
@@ -1330,7 +1313,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                     System.debug(LoggingLevel.ERROR, 'Line Number missing for SObject ' + item);
                     throw new PricingPlanHelperException('Line Number missing for SObject with Id ' + item.Id);
                 }
-
+ 
                 String productName = (String)item.getSObject('PricebookEntry').getSObject('Product2').get('Name');
                 List<SObject> items = prodNameToItems.get(productName);
                 if (items == null)
@@ -1340,18 +1323,18 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                 }
                 items.add(item);
             }
-
+ 
             if (!productPathMapping.isEmpty())
             {
                 for (String lineNum : lineNumToItem.keySet())
                 {
                     SObject item = lineNumToItem.get(lineNum);
                     String productName = (String)item.getSObject('PricebookEntry').getSObject('Product2').get('Name');
-
+ 
                     String productPath = productName;
-
+ 
                     String parentLineNum = parentLineNums.get(lineNum);
-
+ 
                     while (String.isNotBlank(parentLineNum))
                     {
                         SObject parentItem = lineNumToItem.get(parentLineNum);
@@ -1402,8 +1385,6 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
             }
 
             getPathMapping(input, output, lineItemList);
-            //Newly Added
-            pricingFieldMapping(input);
 
             populatePathMappings();
 
@@ -1412,82 +1393,6 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
             result = prepareInputMap();
         }
         output.put('Result', result);
-    }
-
-    private void pricingFieldMapping(Map<String, Object> input)
-    {
-        //Related Field Mapping for parent field based pricing from Line Items, Passed from pricing plan steps parameters.
-        List<Object> pricingFieldMapping = (List<Object>) input.get('PricingFieldMapping');
-        //To Store mapping of parent related field from Line Items to Matrix Column mapping.         
-        Map<String, Set<Id>> sObjectsParentIds = new Map<String, Set<Id>>();
-        if(pricingFieldMapping != NULL)
-        {
-            for(Object priceField : pricingFieldMapping)
-            {
-                Map<String, Object> priceFieldMap = (Map<String, Object>) priceField;
-                String columnName = String.valueof(priceFieldMap.get('MatrixColumn'));
-                String relationalAPIFieldName = String.valueof(priceFieldMap.get('relationalField'));
-                String fieldAPIName = String.valueof(priceFieldMap.get('fieldAPI'));
-                String sObjectType = String.valueof(priceFieldMap.get('SObjectType'));
-
-                if(sObjectTypeFieldsMap.get(sObjectType) == NULL)
-                {
-                    sObjectTypeFieldsMap.put(sObjectType, new List<String>());
-                }
-
-                if(sObjectRelationsOnLineItemObject.get(sObjectType) == NULL)
-                {
-                    sObjectRelationsOnLineItemObject.put(sObjectType, new List<String>());
-                }
-                sObjectRelationsOnLineItemObject.get(sObjectType).add(relationalAPIFieldName);
-                sObjectTypeFieldsMap.get(sObjectType).add(fieldAPIName);
-                pricingFieldMatrixMapping.put(relationalAPIFieldName + '.' + fieldAPIName, columnName);
-            }
-        }
-
-        
-        for (String lineN : lineNumberToItem.keySet())
-        {
-            SObject item = (SObject)lineNumberToItem.get(lineN);
-            if(sObjectTypeFieldsMap != NULL && !sObjectTypeFieldsMap.keyset().isEmpty())
-            {
-                for(String sObjectTypeStr : sObjectTypeFieldsMap.keyset())
-                {
-                    if(!sObjectRelationsOnLineItemObject.get(sObjectTypeStr).isEmpty())
-                    {
-                        for(String relationalFieldOnLineItem : sObjectRelationsOnLineItemObject.get(sObjectTypeStr))
-                        {
-                            Id relationalParentRecordId = Id.valueof(String.valueof(item.get(relationalFieldOnLineItem)));
-                            if(sObjectsParentIds.get(sObjectTypeStr) == NULL)
-                            {
-                                sObjectsParentIds.put(sObjectTypeStr, new Set<Id>());
-                            }
-                            sObjectsParentIds.get(sObjectTypeStr).add(relationalParentRecordId);
-                        }
-                    }
-                }
-            }
-        }
-
-        
-
-        if(sObjectTypeFieldsMap != NULL && sObjectTypeFieldsMap.keySet().size() > 0)
-        {
-           // Set<Id> itemIds = (new Map<Id,SObject>(itemList)).keySet();
-            
-            //If there are more object on which location based pricing is depended then query here.
-            String sObjectType = new List<String>(sObjectTypeFieldsMap.keySet())[0]; 
-            
-            Set<Id> parentIds = sObjectsParentIds.get(sObjectType);
-            
-            List<String> fields = sObjectTypeFieldsMap.get(sObjectType);
-
-            Map<Id, Sobject> relatedQuoteMembers = new Map<Id , Sobject>(Database.query('Select  Id, ' + String.join(fields, ',') 
-                                                                                        + ' FROM ' + sObjectType 
-                                                                                        + ' WHERE Id in :parentIds'));
-        
-            itemListParentMap.put(sObjectType , relatedQuoteMembers);
-        }
     }
 
     private void populateAttributeInfo()
@@ -1518,7 +1423,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                 }
                 else {
                     attributeCodeToDisplayName.putAll(attributeCodes);
-                }
+                }                
             }
             catch (Exception e)
             {
@@ -1635,7 +1540,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
             lineNumber = (String)currentRowVals.get(NSP + 'LineNumber__c');
         }
         Integer Quantity = Integer.valueOf(currentRowVals.get('Quantity'));
-
+        
         Map<String, Object> rowData = initializeRowDataMap(lineNumber, productCode, productName, quantity);
 
         String charNames = ''; // attribute display names
@@ -1674,7 +1579,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                         attrOrderSet = (Set<String>)obj;
                     }
                     if (obj instanceOf List<Object>) {
-
+                        
                         List<Object> objList = (List<Object>)obj;
                         attrOrderSet = new Set<String>();
                         for (Object ob : objList) {
@@ -1948,7 +1853,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
             (String.isBlank(outputAttrMapStr) && String.isBlank(outputVarParamMapStr) && String.isBlank(outputFieldBindingMapStr))) { 
             return; 
         }
-
+    
         Map<String, Object> outputAttrMap = new Map<String, Object>();
         if (String.isNotBlank(outputAttrMapStr)) {
             for (String entry : outputAttrMapStr.split(',')) {
@@ -1977,18 +1882,18 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                 }
             }
         }
-
+    
         Boolean hasAggregates = false;
         if (procAggrResult != null && !procAggrResult.isEmpty()) {
             hasAggregates = true;
         }
-
+    
         if (isLogging) {
             System.debug('*** output attributes: ' + outputAttrMap);
             System.debug('*** output variable mapping: ' + outputVarParamMap);
             System.debug('*** jsonAttrSupportResults: ' + JSON.serialize(jsonAttrSupportResults));
         }
-
+    
         Map<Id, Object> productAttr = new Map<Id, Object>();        
         Set<String> itemIds = itemIdToItem.keySet();
         if (!useAttributeV2Model) {
@@ -2011,7 +1916,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
                         varMap.put((String) outputVarParamMap.get(param),procAggrResult.get(param));
                     }
                 }
-
+    
                 SObject item = (SObject)itemIdToItem.get(rowId);
                 if (item != null) {
                     for (String outputVar : outputFieldBindingMap.keySet()) {
@@ -2127,7 +2032,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
     }
 
 
-
+    
     public static String getCpqConfigurationSetupValue(String setupName)
     {
         vlocity_cmt__CpqConfigurationSetup__c cpqSetup = vlocity_cmt__CpqConfigurationSetup__c.getInstance(setupName);
@@ -2158,7 +2063,7 @@ global with sharing virtual class PricingPlanHelper implements vlocity_cmt.Vloci
         }
         return null;
     }
-
+    
     private void processInputAttributeAndVariableMap(Map<String, Object> input, List<Object> inputData, Map<String, Object> jsonAttrSupportResults, Map<String, Object> outputVarMap) 
     {
         if (isLogging) {
