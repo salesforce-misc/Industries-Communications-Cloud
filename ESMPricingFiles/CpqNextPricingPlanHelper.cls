@@ -1,9 +1,9 @@
-global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
-
+global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper{
+    
     private vlocity_cmt.CpqCartDocument cartDocument;
     private Map<String, vlocity_cmt.CpqCartDocumentItem> itemWrapperMap;
     public static final String PRODUCT_ABP_MAPPING = 'setProductABPAttrMapping';
-
+    
     global override void initializeParentAndLineItems(Map<String, Object> input)
     {
         isCpqNextFlow = true;
@@ -93,7 +93,7 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
                         productPath = productName + '<' + productPath;
                         parentLineNum = parentLineNums.get(parentLineNum);
                     }
-                    String pathKey = (String)productPathMapping.get(productPath);
+                    String pathKey = (String)productPathMapping.get(productPath);                    
                     if (String.isNotBlank(pathKey))
                     {
                         lineNumberToPathKeyMapping.put(lineNum, pathKey);
@@ -126,7 +126,7 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
             String productName = (String)currentRowVals.get('name');
             Object quantity = currentRowVals.get('Quantity');
             currentRowVals.put('Id', currentRowVals.get(NSP + 'AssetReferenceId__c'));
-
+            
             //If the given Product Code is not present in Matrix, no need to process it.
             if(!productCodeSet.contains(productCode))
             {
@@ -150,7 +150,7 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
 
             attrMap.putAll(attributeCodeValueMap);
             result.addAll(prepareRowDataMap(productCode, productName, currentRowVals, attrMap));
-
+            
         }
         return result;
     }
@@ -307,7 +307,7 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
                 externalPriceArgs.put('pricingVariableToFieldMap', pricingVariableToFieldMap);
                 externalPriceArgs.put('itemFieldsInfo', itemFields);
                 externalPriceArgs.put('timePlanPolicyList', timePlanPolicyList);
-
+                
                 Map<String, Object> priceOutput = cartDocument.call('setExternalPrice', externalPriceArgs);
             }
         }
@@ -373,7 +373,7 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
 
         return jsonSupportResultMap;
     }
-
+    
     /**
      *  This method is a reference method for custome and not used anywhere, hence commenting out for increasing code coverage
    	
