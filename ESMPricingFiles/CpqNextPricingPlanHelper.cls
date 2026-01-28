@@ -1,8 +1,9 @@
-global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
-
+global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper{
+    
     private vlocity_cmt.CpqCartDocument cartDocument;
     private Map<String, vlocity_cmt.CpqCartDocumentItem> itemWrapperMap;
-
+    public static final String PRODUCT_ABP_MAPPING = 'setProductABPAttrMapping';
+    
     global override void initializeParentAndLineItems(Map<String, Object> input)
     {
         isCpqNextFlow = true;
@@ -92,7 +93,7 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
                         productPath = productName + '<' + productPath;
                         parentLineNum = parentLineNums.get(parentLineNum);
                     }
-                    String pathKey = (String)productPathMapping.get(productPath);
+                    String pathKey = (String)productPathMapping.get(productPath);                    
                     if (String.isNotBlank(pathKey))
                     {
                         lineNumberToPathKeyMapping.put(lineNum, pathKey);
@@ -125,7 +126,7 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
             String productName = (String)currentRowVals.get('name');
             Object quantity = currentRowVals.get('Quantity');
             currentRowVals.put('Id', currentRowVals.get(NSP + 'AssetReferenceId__c'));
-
+            
             //If the given Product Code is not present in Matrix, no need to process it.
             if(!productCodeSet.contains(productCode))
             {
@@ -139,8 +140,17 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
 
             output = item.call('getItemAttributes',new Map<String, Object>{'flattenedAttributeValues'=>true, 'useDisplayTextForValues'=>useDisplayTextForValues});
 
-            result.addAll(prepareRowDataMap(productCode, productName, currentRowVals, (Map<String, Object>) output.get('result')));
+            Map<String, Object> attributeCodeValueMap = (Map<String, Object>) output.get('result');
 
+            output = item.call('getItemReferredAttributes', null);
+
+            Map<String, Object> referredAttribtues = (Map<String, Object>) output.get('result');
+
+            Map<String, Object> attrMap = new Map<String, Object>(referredAttribtues);
+
+            attrMap.putAll(attributeCodeValueMap);
+            result.addAll(prepareRowDataMap(productCode, productName, currentRowVals, attrMap));
+            
         }
         return result;
     }
@@ -238,7 +248,7 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
                         }
                         String itemField = pricingVariableToFieldMap.get(fld);
                         Map<String, Object> fieldVals = new Map<String, Object>();
-                        fieldVals.put('value', matrixResultRow.get(fld));
+                        fieldVals.put('value', Double.valueOf(matrixResultRow.get(fld)));
                         fieldVals.put('detail', message);
                         fieldVals.put('source', 'ABP');
                         fieldVals.put('code', fld);
@@ -247,10 +257,10 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
                     itemFields.put(String.valueOf(matrixResultRow.get('ID')), itemFieldDetails);
 
                     //only for UOM
-                    String uom = String.valueOf(matrixResultRow.get('UOM'));
+                    String uom = String.valueOf(matrixResultRow.get('CM'));
                     if(String.isNotBlank(uom))
                     {
-                        lineItemIdToUOM.put((Id)matrixResultRow.get('ID'), uom);
+                        lineItemIdToUOM.put((String)matrixResultRow.get('ID'), uom);
                     }
                 }
             }
@@ -259,7 +269,35 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
                 System.debug('itemFields: ' + JSON.serialize(itemFields));
             }
         }
-        //TODO: set price from UOM
+
+        //set UOM Id.
+        if(unitOfMeasureToIdMap != null && !unitOfMeasureToIdMap.isEmpty()
+            && !lineItemIdToUOM.isEmpty())
+        {
+            for(String itemId: itemWrapperMap.keySet())
+            {
+                vlocity_cmt.CpqCartDocumentItem item = itemWrapperMap.get(itemId);
+                String uom = lineItemIdToUOM.get(itemId);
+                String uomId = null;
+                if(String.isNotBlank(uom))
+                {
+                    uomId = (String) unitOfMeasureToIdMap.get(uom);
+                }
+                if(uomId != null)
+                {
+                    Map<String,Object> inputMap = new Map<String,Object> {
+                        'fieldValueMap' => new Map<String,Object> {
+                            NSP + 'UsageMeasurementId__c' => uomId,
+                            'usageUOM' => new Map<String, String> {
+                                'Id' => uomId,
+                                'Name' => uom
+                            }
+                        }
+                    };
+                    item.call('setItemFields', inputMap);
+                }
+            }
+        }
 
         if (!itemFields.isEmpty())
         {
@@ -269,12 +307,33 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
                 externalPriceArgs.put('pricingVariableToFieldMap', pricingVariableToFieldMap);
                 externalPriceArgs.put('itemFieldsInfo', itemFields);
                 externalPriceArgs.put('timePlanPolicyList', timePlanPolicyList);
-
+                
                 Map<String, Object> priceOutput = cartDocument.call('setExternalPrice', externalPriceArgs);
             }
         }
     }
 
+    global override void updateCartDocumentWithABPMapping(String nodeName) {
+        Map<String, Object> productAttrWithCodeList = new Map<String, Object>();
+        Map<String, Object> productABPAttrAndDisplayNameMap = (Map<String, Object> ) productCodeMapping.get(nodeName);
+        if (productABPAttrAndDisplayNameMap == null) return;
+        for (String product : productABPAttrAndDisplayNameMap.keySet()) {
+            Set<String> attrDisplayNameList = (Set<String>) productABPAttrAndDisplayNameMap.get(product);
+            if (attrDisplayNameList == null || attrDisplayNameList.size() == 0) continue;
+            Set<String> codeList = new Set<String>();
+            for (String attrDisplayName : attrDisplayNameList) {
+                String[] attributeNames = attrDisplayName.split(','); 
+                for (String attrName : attributeNames) {
+                    String codeName = (String) attributeDisplayNameToCodeName.get(attrName.trim());
+                    if (codeName != null) {
+                        codeList.add(codeName);
+                    }
+                }
+            }
+            productAttrWithCodeList.put(product, codeList);
+        }
+        cartDocument.call(PRODUCT_ABP_MAPPING, new Map<String, Object>{nodeName => productAttrWithCodeList});
+    }
 
     global override String getProductName(String lineNumber)
     {
@@ -314,15 +373,18 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
 
         return jsonSupportResultMap;
     }
-
-    private void processOutputAttributeAndVariableMap(Map<String, Object> input,List<Object> procResult,Map<String, Object> procAggrResult, Map<String, Object> jsonAttrSupportResults,Map<String, Object> outputVarMap) {
+    
+    /**
+     *  This method is a reference method for custome and not used anywhere, hence commenting out for increasing code coverage
+   	
+	private void processOutputAttributeAndVariableMap(Map<String, Object> input,List<Object> procResult,Map<String, Object> procAggrResult, Map<String, Object> jsonAttrSupportResults,Map<String, Object> outputVarMap) {
         String outputAttrMapStr = (String) input.get('OutputAttributeMap');
         String outputVarParamMapStr = (String) input.get('OutputVariableMap');
-        if (procResult == null || procResult.isEmpty() ||
-            (String.isBlank(outputAttrMapStr) && String.isBlank(outputVarParamMapStr))) {
-            return;
+        if (procResult == null || procResult.isEmpty() || 
+            (String.isBlank(outputAttrMapStr) && String.isBlank(outputVarParamMapStr))) { 
+            return; 
         }
-
+    
         Map<String, Object> outputAttrMap = new Map<String, Object>();
         if (String.isNotBlank(outputAttrMapStr)) {
             for (String entry : outputAttrMapStr.split(',')) {
@@ -342,18 +404,18 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
                 }
             }
         }
-
+    
         Boolean hasAggregates = false;
         if (procAggrResult != null && !procAggrResult.isEmpty()) {
             hasAggregates = true;
         }
-
+    
         if (isLogging) {
             System.debug('*** output attributes: ' + outputAttrMap);
             System.debug('*** output variable mapping: ' + outputVarParamMap);
             System.debug('*** lineNumberToAttributeCodeValueMap: ' + JSON.serialize(jsonAttrSupportResults));
         }
-
+    
         Map<String, Object> attrMap;
         for (Object obj : procResult) { //procResult has output from matrix
             if (obj instanceof Map<String, Object>) {
@@ -368,7 +430,7 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
                         varMap.put((String) outputVarParamMap.get(param),procAggrResult.get(param));
                     }
                 }
-
+    
                 vlocity_cmt.CpqCartDocumentItem item = (vlocity_cmt.CpqCartDocumentItem) itemWrapperMap.get(rowId);
 
                 if (item != null) {
@@ -405,5 +467,5 @@ global with sharing class CpqNextPricingPlanHelper extends PricingPlanHelper {
         if (isLogging) {
           System.debug('*** output variable values: ' + JSON.serialize(outputVarMap));
         }
-    }
+    }*/
 }
